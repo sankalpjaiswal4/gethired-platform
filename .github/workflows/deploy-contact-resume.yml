@@ -22,17 +22,13 @@ jobs:
           jq -n --rawfile query supabase/migrations/20260928180000_contact_resumes.sql '{query:$query}' > /tmp/body.json
           curl --fail-with-body -sS -o /tmp/result.json -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/body.json
           echo 'Private CV schema applied'
-      - name: Install cleanup secret in Vault and Edge Function
+      - name: Install cleanup verifier with DB-generated Vault secret
         shell: bash
         run: |
           set -euo pipefail
-          SECRET="$(openssl rand -hex 32)"
-          echo "::add-mask::$SECRET"
-          jq -n --arg value "$SECRET" '[{name:"GH_CLEANUP_SECRET",value:$value}]' >/tmp/secret.json
-          curl --fail-with-body -sS -o /dev/null -X POST "https://api.supabase.com/v1/projects/$REF/secrets" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/secret.json
-          jq -n --arg value "$SECRET" '{query:("select vault.create_secret($$" + $value + "$$, $$gh_contact_cleanup_secret$$);")}' >/tmp/vault-query.json
-          curl --fail-with-body -sS -o /dev/null -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/vault-query.json
-          echo 'Cleanup secret installed'
+          jq -n --rawfile query supabase/migrations/20260928180500_cleanup_auth.sql '{query:$query}' >/tmp/body.json
+          curl --fail-with-body -sS -o /tmp/result.json -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/body.json
+          echo 'Cleanup verifier installed'
       - name: Deploy contact function
         run: supabase functions deploy gethired-contact --project-ref "$REF" --no-verify-jwt
       - name: Replace row-only cron with Storage-aware cleanup
