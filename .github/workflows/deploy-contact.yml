@@ -1,0 +1,25 @@
+name: Deploy GETHIRED contact interest
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Apply schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          jq -n --rawfile query supabase/migrations/20260927170000_contact_interest.sql '{query:$query}' > /tmp/body.json
+          curl --fail-with-body -sS -o /tmp/result.json -X POST 'https://api.supabase.com/v1/projects/rlozvzlpapciwgointjp/database/query' -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/body.json
+          echo 'Schema applied'
+      - name: Deploy function
+        run: supabase functions deploy gethired-contact --project-ref rlozvzlpapciwgointjp --no-verify-jwt
