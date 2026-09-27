@@ -7,12 +7,14 @@ function clean(s:string){return s.trim().replace(/\s+/g,' ')}
 async function sha(s:string){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))).map(b=>b.toString(16).padStart(2,'0')).join('')}
 Deno.serve(async req=>{
  const allow=req.headers.get('Origin')===ORIGIN;
- const cleanup=req.method==='POST' && !!req.headers.get('x-cleanup-secret') && !!Deno.env.get('GH_CLEANUP_SECRET') && req.headers.get('x-cleanup-secret')===Deno.env.get('GH_CLEANUP_SECRET');
- if(!allow&&!cleanup)return new Response(JSON.stringify({error:'Unavailable'}),{status:403});
+ const cleanupAttempt=req.method==='POST' && !!req.headers.get('x-cleanup-secret');
+ if(!allow&&!cleanupAttempt)return new Response(JSON.stringify({error:'Unavailable'}),{status:403});
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
  const base=Deno.env.get('SUPABASE_URL'), service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),anon=Deno.env.get('SUPABASE_ANON_KEY');
  if(!base||!service||!anon)return reply({error:'Service unavailable'},503);
  const headers={apikey:service,Authorization:'Bearer '+service,'Content-Type':'application/json'};
+ let cleanup=false;if(cleanupAttempt){const check=await fetch(`${base}/rest/v1/rpc/gh_check_cleanup_secret`,{method:'POST',headers,body:JSON.stringify({p_secret:req.headers.get('x-cleanup-secret')})});if(!check.ok||await check.json()!==true)return new Response(JSON.stringify({error:'Unavailable'}),{status:403});cleanup=true}
+
  const rowsUrl=`${base}/rest/v1/gh_contact_interest`;
  async function removeFile(path:string){const r=await fetch(`${base}/storage/v1/object/${BUCKET}/${path}`,{method:'DELETE',headers:{apikey:service,Authorization:'Bearer '+service}});return r.ok||r.status===404}
  try{
