@@ -1,0 +1,3 @@
+project_id = "rlozvzlpapciwgointjp"
+[functions.gethired-synthetic-preview]
+verify_jwt = true
