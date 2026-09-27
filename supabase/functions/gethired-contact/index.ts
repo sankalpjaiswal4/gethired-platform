@@ -1,12 +1,12 @@
 // Consent-limited contact interest. No resume or job applications.
-const ORIGIN='https://gethired-platform.pages.dev/', OWNER='sankalpjaiswal2006@gmail.com';
+const ORIGIN='https://gethired-platform.pages.dev', OWNER='sankalpjaiswal2006@gmail.com';
 const cors={'Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Methods':'POST,GET,DELETE,OPTIONS','Access-Control-Allow-Headers':'authorization,apikey,content-type','Vary':'Origin'};
 function reply(data:unknown,status=200,corsAllowed=true){return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store',...(corsAllowed?cors:{})}})}
 function valid(s:unknown,min:number,max:number){return typeof s==='string' && s.trim().length>=min && s.trim().length<=max && !/[<>\x00-\x1f]/.test(s)}
 function clean(s:string){return s.trim().replace(/\s+/g,' ')}
 async function sha(s:string){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))).map(b=>b.toString(16).padStart(2,'0')).join('')}
 Deno.serve(async req=>{
- const allow=req.headers.get('Origin')===ORIGIN.slice(0,-1);
+ const allow=req.headers.get('Origin')===ORIGIN;
  if(!allow)return reply({error:'Unavailable'},403,false);
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
  const base=Deno.env.get('SUPABASE_URL'), service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),anon=Deno.env.get('SUPABASE_ANON_KEY');
