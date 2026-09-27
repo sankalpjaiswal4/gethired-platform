@@ -1,0 +1,44 @@
+name: Deploy GETHIRED private CV contact intake
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF: rlozvzlpapciwgointjp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Add private bucket and resume columns
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          jq -n --rawfile query supabase/migrations/20260928180000_contact_resumes.sql '{query:$query}' > /tmp/body.json
+          curl --fail-with-body -sS -o /tmp/result.json -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/body.json
+          echo 'Private CV schema applied'
+      - name: Install cleanup secret in Vault and Edge Function
+        shell: bash
+        run: |
+          set -euo pipefail
+          SECRET="$(openssl rand -hex 32)"
+          echo "::add-mask::$SECRET"
+          jq -n --arg value "$SECRET" '[{name:"GH_CLEANUP_SECRET",value:$value}]' >/tmp/secret.json
+          curl --fail-with-body -sS -o /dev/null -X POST "https://api.supabase.com/v1/projects/$REF/secrets" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/secret.json
+          jq -n --arg value "$SECRET" '{query:("select vault.create_secret($$" + $value + "$$, $$gh_contact_cleanup_secret$$);")}' >/tmp/vault-query.json
+          curl --fail-with-body -sS -o /dev/null -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/vault-query.json
+          echo 'Cleanup secret installed'
+      - name: Deploy contact function
+        run: supabase functions deploy gethired-contact --project-ref "$REF" --no-verify-jwt
+      - name: Replace row-only cron with Storage-aware cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n --rawfile query supabase/migrations/20260928181000_resume_expiry.sql '{query:$query}' > /tmp/body.json
+          curl --fail-with-body -sS -o /tmp/result.json -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/body.json
+          echo 'Storage-aware cleanup scheduled'
