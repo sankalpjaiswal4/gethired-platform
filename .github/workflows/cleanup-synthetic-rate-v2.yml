@@ -1,0 +1,21 @@
+name: Remove synthetic rate-limit test record
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF: rlozvzlpapciwgointjp
+    steps:
+      - name: Delete only the exact synthetic employer test row and verify zero remain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          jq -n --arg query "delete from public.gh_contact_interest where kind='employer' and email='gethired-rate-v2-20260928-1790569581@example.invalid' returning id;" '{query:$query}' >/tmp/delete.json
+          curl --fail-with-body -sS -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/delete.json | jq 'map({id})'
+          jq -n --arg query "select count(*)::int as remaining from public.gh_contact_interest where kind='employer' and email='gethired-rate-v2-20260928-1790569581@example.invalid';" '{query:$query}' >/tmp/verify.json
+          curl --fail-with-body -sS -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/verify.json | jq 'map({remaining})'
