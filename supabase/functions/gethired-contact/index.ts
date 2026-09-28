@@ -80,7 +80,7 @@ Deno.serve(async req=>{
    const signature=ext==='pdf'&&String.fromCharCode(...magic.slice(0,5))==='%PDF-' ||ext==='doc'&&[0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1].every((b,i)=>magic[i]===b);
    if(!ext||!signature||!(file.type===''||file.type===mime||ext==='doc'&&file.type==='application/octet-stream'))return reply({error:'Use a valid PDF or DOC file'},400);
   }
-  const ipHash=await sha(service+':global-contact-interest');const limit=await fetch(`${base}/rest/v1/rpc/gh_take_contact_rate`,{method:'POST',headers,body:JSON.stringify({p_hash:ipHash})});
+  const globalHash=await sha(service+':global-contact-interest-v2'), emailHash=await sha(service+':contact-email-v2:'+email);const limit=await fetch(`${base}/rest/v1/rpc/gh_take_contact_rate_v2`,{method:'POST',headers,body:JSON.stringify({p_global_hash:globalHash,p_email_hash:emailHash})});
   if(!limit.ok)return reply({error:'Please try again later'},503);if(await limit.json()!==true)return reply({error:'Too many attempts. Try again in an hour.'},429);
   const duplicate=await fetch(`${rowsUrl}?select=id&kind=eq.${kind}&email=eq.${encodeURIComponent(email)}&limit=1`,{headers});
   if(!duplicate.ok)return reply({error:'Could not check this request'},503);if((await duplicate.json()).length)return reply({received:true,already_registered:true});
