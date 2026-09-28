@@ -1,0 +1,21 @@
+name: Verify GETHIRED contact cron
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF: rlozvzlpapciwgointjp
+    steps:
+      - name: Read cron and HTTP status only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          jq -n --arg query "select j.jobname, r.start_time, r.end_time, r.status, left(r.return_message,240) as message from cron.job_run_details r join cron.job j using(jobid) where j.jobname='gh-contact-expiry-daily' and r.start_time >= '2026-09-28T02:00:00Z' order by r.start_time desc limit 5" '{query:$query}' > /tmp/cron.json
+          curl --fail-with-body -sS -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/cron.json | jq 'map({jobname,start_time,end_time,status,message})'
+          jq -n --arg query "select id, created, status_code, left(content,180) as response from net._http_response where created >= '2026-09-28T02:00:00Z' order by created desc limit 8" '{query:$query}' > /tmp/http.json
+          curl --fail-with-body -sS -X POST "https://api.supabase.com/v1/projects/$REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/http.json | jq 'map({id,created,status_code,response})'
